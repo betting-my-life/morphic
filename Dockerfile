@@ -1,21 +1,3 @@
-# Build stage - Use Node for Next.js 16 compatibility (Bun lacks worker_threads support on arm64)
-FROM node:22-slim AS builder
-
-WORKDIR /app
-
-# Install bun for dependency management
-RUN npm install -g bun
-
-# Install dependencies (separated for better cache utilization)
-COPY package.json bun.lock ./
-RUN bun install
-
-# Copy source code and build
-COPY . .
-RUN npx next telemetry disable
-ENV DATABASE_URL=postgresql://user:pass@localhost:5432/db
-RUN npm run build
-
 # Runtime stage
 FROM node:22-slim AS runner
 WORKDIR /app
@@ -35,6 +17,9 @@ COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/lib/db ./lib/db
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
+# Proxy patch - route all fetch through HTTPS_PROXY
+RUN echo "import { ProxyAgent, setGlobalDispatcher } from 'undici';\nif (process.env.HTTPS_PROXY) { setGlobalDispatcher(new ProxyAgent(process.env.HTTPS_PROXY)); }" > /app/proxy-patch.mjs
+
 # Create entrypoint script for database migration
 RUN echo '#!/bin/sh\n\
 set -e\n\
@@ -43,6 +28,5 @@ bun run migrate\n\
 echo "Migrations completed. Starting server..."\n\
 exec "$@"\n' > /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
-# Start production server with migration
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["npx", "next", "start", "-H", "0.0.0.0"]
+CMD ["node", "--import", "/app/proxy-patch.mjs", "/app/node_modules/.bin/next", "start", "-H", "0.0.0.0"]
