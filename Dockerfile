@@ -17,15 +17,13 @@ RUN npm run build
 FROM node:22-slim AS runner
 WORKDIR /app
 
-RUN npm install undici --legacy-peer-deps
-
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/bun.lock ./bun.lock
 COPY --from=builder /app/node_modules ./node_modules
 
-RUN npm install undici
+RUN npm install undici --legacy-peer-deps
 
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/lib/db ./lib/db
