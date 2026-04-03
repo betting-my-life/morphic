@@ -1,7 +1,7 @@
-import { createGateway } from '@ai-sdk/gateway'
+import {createGateway} from '@ai-sdk/gateway'
 
-import { Model } from '@/lib/types/models'
-import { isProviderEnabled } from '@/lib/utils/registry'
+import {Model} from '@/lib/types/models'
+import {isProviderEnabled} from '@/lib/utils/registry'
 
 export type ModelsByProvider = Record<string, Model[]>
 
@@ -156,6 +156,36 @@ async function fetchJson(
     throw new Error(`HTTP ${response.status}: ${response.statusText}`)
   }
   return (await response.json()) as Record<string, any>
+}
+
+export async function fetchOpenAICompatibleModels(): Promise<Model[]> {
+  if (!isProviderEnabled('openai-compatible')) {
+    return []
+  }
+
+  try {
+    const json = await fetchJson(`${process.env.OPENAI_COMPATIBLE_API_BASE_URL}/models`, {
+      Authorization: `Bearer ${process.env.OPENAI_COMPATIBLE_API_KEY}`
+    })
+
+    const data = Array.isArray(json?.data) ? json.data : []
+    return sortModels(
+        dedupeModels(
+            data
+                .map(item => String(item?.id ?? ''))
+                .filter(Boolean)
+                .map(id => ({
+                  id: `openai-compatible:${id}`,
+                  name: id,
+                  provider: 'OpenAI Compatible',
+                  providerId: 'openai-compatible'
+                }))
+        )
+    )
+  } catch (error) {
+    console.warn('[ModelFetch] Failed to fetch OpenAI Compatible models:', error)
+    return []
+  }
 }
 
 export async function fetchOpenAIModels(): Promise<Model[]> {
@@ -389,17 +419,17 @@ export async function fetchAvailableModels(options?: {
     return modelsCache.value
   }
 
-  const [openai, anthropic, google, ollama, gateway] = await Promise.all([
+  const [openai, anthropic, google, ollama, gateway, openaiCompatible] = await Promise.all([
     fetchOpenAIModels(),
     fetchAnthropicModels(),
     fetchGoogleModels(),
     fetchOllamaModels(),
-    fetchGatewayModels()
+    fetchGatewayModels(),
+    fetchOpenAICompatibleModels()
   ])
 
   const grouped = groupByProvider(
-    dedupeModels([...openai, ...anthropic, ...google, ...ollama, ...gateway])
-  )
+      dedupeModels([...openai, ...anthropic, ...google, ...ollama, ...gateway, ...openaiCompatible])  )
 
   // Keep stable ordering for each provider list.
   const normalized = Object.fromEntries(
