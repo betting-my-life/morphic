@@ -17,7 +17,7 @@ RUN npm run build
 FROM node:22-slim AS runner
 WORKDIR /app
 
-RUN npm install -g bun
+RUN npm install undici --legacy-peer-deps
 
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
