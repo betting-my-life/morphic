@@ -30,7 +30,7 @@ COPY --from=builder /app/lib/db ./lib/db
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
 # Proxy patch
-RUN printf "import { ProxyAgent, setGlobalDispatcher } from 'undici';\nif (process.env.HTTPS_PROXY) { setGlobalDispatcher(new ProxyAgent(process.env.HTTPS_PROXY)); }\n" > /app/proxy-patch.mjs
+RUN printf "import { ProxyAgent, setGlobalDispatcher } from 'node:undici';\nif (process.env.HTTPS_PROXY) { setGlobalDispatcher(new ProxyAgent(process.env.HTTPS_PROXY)); }\n" > /app/proxy-patch.mjs
 
 RUN printf '#!/bin/sh\nset -e\necho "Running database migrations..."\nbun run migrate\necho "Migrations completed. Starting server..."\nexec "$@"\n' > /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
